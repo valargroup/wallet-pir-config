@@ -1,0 +1,5 @@
+/_site/
+/.config-site-*/
+/.venv/
+__pycache__/
+*.pyc

@@ -1,0 +1,71 @@
+name: Validate and publish wallet PIR config
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wallet-pir-config-${{ github.event_name == 'pull_request' && github.ref || 'pages' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - name: Install the authoritative config verifier
+        run: |
+          revision=$(jq -er '.revision | select(test("^[0-9a-f]{40}$"))' validator-source.json)
+          cargo install --locked --git https://github.com/zakura-core/wallet-libraries \
+            --rev "$revision" zakura-pir-config --bin wallet-pir-config \
+            --root "$RUNNER_TEMP/wallet-pir-config-tools"
+          echo "$RUNNER_TEMP/wallet-pir-config-tools/bin" >> "$GITHUB_PATH"
+      - name: Check publication invariants
+        run: python3 -m unittest discover -s tests
+      - name: Validate and package the public snapshot
+        run: python3 scripts/config_site.py build --output _site
+      - name: Print immutable static pin URLs
+        run: python3 scripts/config_site.py verify >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        with:
+          path: _site
+
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish only the current main revision
+        id: revision
+        run: |
+          current=$(timeout 30 git ls-remote --exit-code origin refs/heads/main | cut -f1)
+          if [ "$current" = "$GITHUB_SHA" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'A newer main revision will publish its complete snapshot.'
+          fi
+      - uses: actions/configure-pages@v5
+        if: steps.revision.outputs.current == 'true'
+      - uses: actions/deploy-pages@v4
+        if: steps.revision.outputs.current == 'true'
+        id: deployment
