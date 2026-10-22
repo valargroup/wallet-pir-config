@@ -5,6 +5,10 @@
     {
       "label": "Valargroup Wallet PIR",
       "url": "https://wallet-pir.valargroup.dev"
+    },
+    {
+      "label": "Valargroup Wallet PIR Secondary",
+      "url": "https://wallet-pir-secondary.valargroup.dev"
     }
   ]
 }
