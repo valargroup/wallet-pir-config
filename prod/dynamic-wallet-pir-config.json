@@ -1,5 +1,10 @@
 {
   "config_version": 1,
   "network": "mainnet",
-  "servers": []
+  "servers": [
+    {
+      "label": "Valargroup Wallet PIR",
+      "url": "https://wallet-pir.valargroup.dev"
+    }
+  ]
 }

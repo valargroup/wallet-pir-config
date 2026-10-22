@@ -18,9 +18,17 @@ GitHub Raw is an additional dynamic-config mirror. Both mirrors are authorized
 to supply server lists under the initial `https-transport` policy. HTTPS does
 not provide a signed-document freshness or replay guarantee.
 
-**The initial server lists are empty.** They intentionally cause no private
-PIR traffic. Add a server only after its four canonical product APIs have been
-deployed and verified; publishing this repository does not deploy a PIR service.
+The production list advertises `https://wallet-pir.valargroup.dev` as one
+base for all four products. Staging remains empty until a testnet service is
+available. An empty list intentionally causes no private PIR traffic.
+
+**Publish the production entry only after the unified host has been deployed
+and qualified.** Its server configuration is prepared in
+[wallet-pir #337](https://github.com/valargroup/wallet-pir/pull/337). Before
+merging this activation change, verify the four canonical product APIs over
+HTTPS, including encrypted queries, and confirm that released wallets can
+still use the existing hostnames and paths. Publishing this repository does
+not deploy a PIR service.
 
 Each server has one labeled base URL. Clients derive `/enhance/v1`,
 `/status/v1`, `/transparent/v1` and `/receiver/v1` beneath it. A wallet explicitly

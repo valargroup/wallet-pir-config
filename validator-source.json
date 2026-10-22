@@ -1,6 +1,6 @@
 {
   "repository": "zakura-core/wallet-libraries",
-  "revision": "fcc514f38d475f8680aa252e8e9842f54e2785d1",
+  "revision": "d72f91ff6e28c7f57cb7fe9c689c06816008a510",
   "package": "zakura-pir-config",
   "binary": "wallet-pir-config"
 }
