@@ -1,0 +1,29 @@
+name: Print static config pins
+
+on:
+  pull_request:
+    paths:
+      - prod/static-wallet-pir-config.json
+      - pins/prod/**
+      - scripts/config_site.py
+      - .github/workflows/print-static-config-pins.yml
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  print-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Print wallet pin URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/config_site.py pins | tee -a "$GITHUB_STEP_SUMMARY"
