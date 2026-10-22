@@ -11,7 +11,6 @@ same foundation with its own documents, repository and attestation policy.
 | Environment | Static document | Dynamic document | Network |
 | --- | --- | --- | --- |
 | Production | `prod/static-wallet-pir-config.json` | `prod/dynamic-wallet-pir-config.json` | `mainnet` |
-| Staging | `stage/static-wallet-pir-config.json` | `stage/dynamic-wallet-pir-config.json` | `testnet` |
 
 The canonical site is `https://valargroup.github.io/wallet-pir-config/`.
 GitHub Raw is an additional dynamic-config mirror. Both mirrors are authorized
@@ -19,8 +18,9 @@ to supply server lists under the initial `https-transport` policy. HTTPS does
 not provide a signed-document freshness or replay guarantee.
 
 The production list advertises `https://wallet-pir.valargroup.dev` as one
-base for all four products. Staging remains empty until a testnet service is
-available. An empty list intentionally causes no private PIR traffic.
+base for all four products. This repository publishes production configuration
+only; it has no staging or testnet configuration. An empty server list
+intentionally causes no private PIR traffic.
 
 **Publish the production entry only after the unified host has been deployed
 and qualified.** Its server configuration is prepared in
@@ -39,7 +39,7 @@ that server-selection policy.
 ## Static pins and authentication
 
 Wallet releases use a static document under
-`pins/<environment>/<sha256>/static-wallet-pir-config.json`, with
+`pins/prod/<sha256>/static-wallet-pir-config.json`, with
 `?checksum=sha256:<sha256>` appended to the URL. Its bytes cannot change or
 disappear. Current static aliases may change only when their new immutable
 copy is included in the same change. The publication command prints the exact
@@ -69,8 +69,17 @@ python3 scripts/config_site.py verify --validator /path/to/wallet-pir-config
 python3 scripts/config_site.py build --validator /path/to/wallet-pir-config --output _site
 ```
 
-Open a pull request for configuration changes. CI validates both environments
-and every retained static pin against its matching dynamic document. After a
+The **Print static config pins** workflow prints the production hash-pinned
+URL in the `print-pins` job log and its GitHub Actions summary, with a
+copy/paste block. It runs on static-pin changes, pushes to `main`, and manual
+dispatch. To print the same output locally:
+
+```sh
+python3 scripts/config_site.py pins
+```
+
+Open a pull request for configuration changes. CI validates production
+and every retained production pin against its dynamic document. After a
 change merges, the Pages workflow uploads only public configuration, checksum
 sidecars, and a manifest identifying the source revision. Source code and local
 files are not part of the serving snapshot. GitHub Pages deploys the complete
