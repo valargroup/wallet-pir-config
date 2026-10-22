@@ -1,6 +1,8 @@
 """Publication invariants independent of the Rust document schema tests."""
 
+import contextlib
 import importlib.util
+import io
 from pathlib import Path
 import subprocess
 import tempfile
@@ -41,7 +43,7 @@ class PublicationTests(unittest.TestCase):
             pin_path = self.repository / "pins" / environment / digest / config_site.STATIC_FILE
             pin_path.parent.mkdir(parents=True)
             pin_path.write_bytes(static_path.read_bytes())
-        self.git("add", ".gitignore", "prod", "stage", "pins")
+        self.git("add", ".gitignore", "prod", "pins")
         self.git("-c", "user.name=Publication tests", "-c", "user.email=test@example.invalid",
                  "commit", "-m", "Initial configuration fixture")
         self.git("update-ref", "refs/remotes/origin/main", "HEAD")
@@ -75,7 +77,9 @@ class PublicationTests(unittest.TestCase):
     def test_symlinked_config_is_rejected(self):
         dynamic_path = self.repository / "prod" / config_site.DYNAMIC_FILE
         dynamic_path.unlink()
-        dynamic_path.symlink_to(self.repository / "stage" / config_site.DYNAMIC_FILE)
+        target = self.repository / "outside-public.json"
+        target.write_text("{}\n")
+        dynamic_path.symlink_to(target)
         with self.assertRaisesRegex(config_site.PublicationError, "must not be a symlink"):
             config_site.validate_repository(self.repository, self.verifier)
 
@@ -88,9 +92,11 @@ class PublicationTests(unittest.TestCase):
         manifest = config_site.build_snapshot(self.repository, self.verifier, snapshot)
         self.assertFalse((snapshot / "private-local.txt").exists())
         self.assertFalse((snapshot / ".git").exists())
-        self.assertEqual(len(self.verifier.checked_pairs), 4)
+        self.assertEqual(len(self.verifier.checked_pairs), 2)
         self.assertEqual(manifest["source_revision"], self.git("rev-parse", "HEAD"))
-        self.assertEqual(len(manifest["files"]), 6)
+        self.assertEqual(len(manifest["files"]), 3)
+        self.assertFalse((snapshot / "stage").exists())
+        self.assertFalse((snapshot / "pins" / "stage").exists())
         for relative, digest in manifest["files"].items():
             self.assertEqual(config_site.file_digest(snapshot / relative), digest)
             self.assertEqual((snapshot / (relative + ".sha256")).read_text(), digest + "\n")
@@ -105,11 +111,30 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(), "preserve me")
 
     def test_uncommitted_sources_cannot_be_published(self):
-        (self.repository / "stage" / config_site.DYNAMIC_FILE).write_text("{}\n")
+        (self.repository / "prod" / config_site.DYNAMIC_FILE).write_text("{}\n")
         output = self.repository / "_site"
         with self.assertRaisesRegex(config_site.PublicationError, "commit configuration changes"):
             config_site.build_snapshot(self.repository, self.verifier, output)
         self.assertFalse(output.exists())
+
+    def test_pin_summary_matches_the_immutable_file_and_is_copyable(self):
+        digest = config_site.file_digest(self.production_pin())
+        expected = (
+            f"{config_site.SITE_URL}/pins/prod/{digest}/{config_site.STATIC_FILE}"
+            f"?checksum=sha256:{digest}"
+        )
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            config_site.print_pin_summary(self.repository)
+        summary = output.getvalue()
+        self.assertIn(f"| Production | `{expected}` |", summary)
+        self.assertIn(f"```text\nproduction={expected}\n```", summary)
+        self.assertNotIn("stage", summary)
+
+    def test_pin_summary_refuses_changed_immutable_bytes(self):
+        self.production_pin().write_text("{}\n")
+        with self.assertRaisesRegex(config_site.PublicationError, "immutable pin bytes differ"):
+            config_site.static_pin_urls(self.repository)
 
 
 if __name__ == "__main__":

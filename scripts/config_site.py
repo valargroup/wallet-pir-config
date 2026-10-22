@@ -16,10 +16,10 @@ import subprocess
 import tempfile
 
 
-ENVIRONMENTS = {"prod": "mainnet", "stage": "testnet"}
+ENVIRONMENTS = {"prod": "mainnet"}
 STATIC_FILE = "static-wallet-pir-config.json"
 DYNAMIC_FILE = "dynamic-wallet-pir-config.json"
-PIN_PATTERN = re.compile(r"pins/(prod|stage)/([0-9a-f]{64})/static-wallet-pir-config\.json")
+PIN_PATTERN = re.compile(r"pins/(prod)/([0-9a-f]{64})/static-wallet-pir-config\.json")
 SITE_URL = "https://valargroup.github.io/wallet-pir-config"
 
 
@@ -64,7 +64,7 @@ def public_file(repository, relative):
 
 
 def published_pins(repository, published_ref):
-    """Return all pins ever added to the published branch, even if removed later."""
+    """Return all production pins ever added to the published branch."""
     paths = git_output(
         repository, "log", "--format=", "--name-only", "--diff-filter=A",
         published_ref, "--", "pins/",
@@ -138,24 +138,55 @@ def build_snapshot(repository, verifier, output, published_ref="origin/main"):
     return manifest
 
 
-def print_pins(repository):
+def static_pin_urls(repository):
+    """Return pin URLs only for valid JSON with matching immutable copies."""
+    urls = {}
     for environment in ENVIRONMENTS:
-        digest = file_digest(repository / environment / STATIC_FILE)
-        print(f"{environment}: {SITE_URL}/pins/{environment}/{digest}/{STATIC_FILE}"
-              f"?checksum=sha256:{digest}")
+        static_path = public_file(repository, f"{environment}/{STATIC_FILE}")
+        try:
+            json.loads(static_path.read_bytes())
+        except (ValueError, UnicodeDecodeError) as error:
+            raise PublicationError(f"invalid static config JSON: {static_path}") from error
+        digest = file_digest(static_path)
+        pin_path = public_file(repository, f"pins/{environment}/{digest}/{STATIC_FILE}")
+        if pin_path.read_bytes() != static_path.read_bytes():
+            raise PublicationError(f"immutable pin bytes differ: {pin_path}")
+        urls[environment] = (
+            f"{SITE_URL}/pins/{environment}/{digest}/{STATIC_FILE}"
+            f"?checksum=sha256:{digest}"
+        )
+    return urls
+
+
+def print_pins(repository):
+    for environment, url in static_pin_urls(repository).items():
+        print(f"{environment}: {url}")
+
+
+def print_pin_summary(repository):
+    """Print a copyable production pin for CI logs and the job summary."""
+    url = static_pin_urls(repository)["prod"]
+    print("## Wallet PIR static config pin\n")
+    print("| Environment | Hash-pinned URL |")
+    print("| --- | --- |")
+    print(f"| Production | `{url}` |")
+    print(f"\n### Copy/paste\n\n```text\nproduction={url}\n```")
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("verify", "build"))
+    parser.add_argument("command", choices=("verify", "build", "pins"))
     parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--validator", default="wallet-pir-config")
     parser.add_argument("--published-ref", default="origin/main")
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args(argv)
     repository = arguments.repository.resolve()
-    verifier = RustConfigVerifier(arguments.validator)
     try:
+        if arguments.command == "pins":
+            print_pin_summary(repository)
+            return
+        verifier = RustConfigVerifier(arguments.validator)
         if arguments.command == "verify":
             validate_repository(repository, verifier, arguments.published_ref)
         else:
