@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "name": "publication-invariants",
+      "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"]
+    },
+    {
+      "name": "authoritative-config-validation",
+      "argv": ["python3", "scripts/config_site.py", "verify"]
+    }
+  ]
+}
