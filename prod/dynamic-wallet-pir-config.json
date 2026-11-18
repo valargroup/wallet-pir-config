@@ -9,6 +9,10 @@
     {
       "label": "Valargroup Wallet PIR Secondary",
       "url": "https://wallet-pir-secondary.valargroup.dev"
+    },
+    {
+      "label": "Zcash Labs Wallet PIR",
+      "url": "https://rpc.fastz.cash"
     }
   ]
 }
